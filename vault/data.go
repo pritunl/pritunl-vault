@@ -43,6 +43,7 @@ type MasterKey struct {
 	ClientSecret string `json:"c"`
 	MasterNonce  string `json:"o"`
 	MasterKey    string `json:"m"`
+	CryptoKeys   string `json:"k"`
 }
 
 type MasterKeyData struct {
