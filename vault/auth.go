@@ -290,6 +290,115 @@ func (v *Vault) decryptPayload(payload *Payload) (data []byte, err error) {
 	return
 }
 
+func (v *Vault) decryptCryptoKeys(masterKey []byte) (
+	cryptoKeys *CryptoKeys, err error) {
+
+	block, err := aes.NewCipher(masterKey)
+	if err != nil {
+		err = &errortypes.ParseError{
+			errors.Wrap(err, "vault: Failed to parse encryption key"),
+		}
+		return
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		err = &errortypes.ParseError{
+			errors.Wrap(err, "vault: Failed to parse encryption block"),
+		}
+		return
+	}
+
+	data, err := gcm.Open(nil, v.cryptoNonce, v.cryptoData, nil)
+	if err != nil {
+		err = &errortypes.ParseError{
+			errors.Wrap(err, "vault: Failed to parse encryption block"),
+		}
+		return
+	}
+
+	keys := &CryptoKeys{}
+
+	err = json.Unmarshal(data, keys)
+	if err != nil {
+		err = &errortypes.ParseError{
+			errors.Wrap(err, "vault: Failed to unmarshal encryption data"),
+		}
+		return
+	}
+
+	hashFunc := hmac.New(sha512.New, masterKey)
+	hashFunc.Write([]byte(keys.AesKey + "&" + keys.HmacKey))
+	hashData := hashFunc.Sum(nil)
+
+	authorization, err := base64.StdEncoding.DecodeString(keys.Authorization)
+	if err != nil {
+		err = &errortypes.ParseError{
+			errors.Wrap(err, "vault: Failed to decode authorization"),
+		}
+		return
+	}
+
+	if subtle.ConstantTimeCompare(hashData, authorization) != 1 {
+		err = &errortypes.ParseError{
+			errors.Wrap(err, "vault: Failed to unmarshal encryption data"),
+		}
+		return
+	}
+
+	cryptoKeys = keys
+
+	return
+}
+
+func (v *Vault) encryptCryptoKeys(masterKey []byte) (
+	ciphertext []byte, err error) {
+
+	v.cryptoNonce, err = utils.RandBytes(12)
+	if err != nil {
+		return
+	}
+
+	block, err := aes.NewCipher(masterKey)
+	if err != nil {
+		err = &errortypes.ParseError{
+			errors.Wrap(err, "vault: Failed to parse encryption key"),
+		}
+		return
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		err = &errortypes.ParseError{
+			errors.Wrap(err, "vault: Failed to parse encryption block"),
+		}
+		return
+	}
+
+	keys := &CryptoKeys{
+		AesKey:  base64.StdEncoding.EncodeToString(v.aesKey),
+		HmacKey: base64.StdEncoding.EncodeToString(v.hmacKey),
+	}
+
+	hashFunc := hmac.New(sha512.New, masterKey)
+	hashFunc.Write([]byte(keys.AesKey + "&" + keys.HmacKey))
+	hashData := hashFunc.Sum(nil)
+
+	keys.Authorization = base64.StdEncoding.EncodeToString(hashData)
+
+	data, err := json.Marshal(keys)
+	if err != nil {
+		err = &errortypes.ParseError{
+			errors.Wrap(err, "vault: Failed to marshal encryption data"),
+		}
+		return
+	}
+
+	ciphertext = gcm.Seal(nil, v.cryptoNonce, data, nil)
+
+	return
+}
+
 func (v *Vault) decryptMasterKey(key *MasterKey) (master []byte, err error) {
 	hostCiphertext, err := base64.StdEncoding.DecodeString(key.HostSecret)
 	if err != nil {
