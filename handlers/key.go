@@ -49,7 +49,13 @@ func masterPost(c *gin.Context) {
 		return
 	}
 
-	c.Status(200)
+	returnPayload, err := vault.Primary.GetCryptoKeys()
+	if err != nil {
+		utils.AbortWithError(c, 500, err)
+		return
+	}
+
+	c.JSON(200, returnPayload)
 }
 
 func initGet(c *gin.Context) {
