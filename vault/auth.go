@@ -129,6 +129,10 @@ func (v *Vault) validateMasterKey(key *MasterKey) (valid bool, err error) {
 		key.HostSecret + "&" + key.ServerSecret + "&" +
 		key.ClientSecret + "&" + key.MasterNonce + "&" + key.MasterKey
 
+	if key.CryptoKeys != "" {
+		input += "&" + key.CryptoKeys
+	}
+
 	hashFunc := hmac.New(sha512.New, v.authorizeKey)
 	hashFunc.Write([]byte(input))
 	hashData := hashFunc.Sum(nil)
