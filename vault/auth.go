@@ -174,6 +174,27 @@ func (v *Vault) authorizeServerKey(key *ServerKey) (err error) {
 	return
 }
 
+func (v *Vault) authorizeCryptoKeys(keys *CryptoKeysData) (err error) {
+	nonce, err := utils.RandStr(16)
+	if err != nil {
+		return
+	}
+
+	keys.Timestamp = time.Now().Unix()
+	keys.Nonce = nonce
+
+	input := keys.Nonce + "&" + fmt.Sprintf("%d", keys.Timestamp) + "&" +
+		keys.CryptoKeys
+
+	hashFunc := hmac.New(sha512.New, v.authorizeKey)
+	hashFunc.Write([]byte(input))
+	hashData := hashFunc.Sum(nil)
+
+	keys.Authorization = base64.StdEncoding.EncodeToString(hashData)
+
+	return
+}
+
 func (v *Vault) validateMasterKeyData(secret []byte, key *MasterKeyData) (
 	valid bool, err error) {
 
