@@ -38,6 +38,7 @@ type Vault struct {
 	initKeyRead     bool
 	hostKeyLoaded   bool
 	masterKeyLoaded bool
+	cryptoKeyRead   bool
 	serverKeyRead   bool
 }
 
@@ -344,6 +345,41 @@ func (v *Vault) LoadMasterKey(payload *Payload) (err error) {
 	}
 
 	err = v.loadCryptoKeys(key)
+	if err != nil {
+		return
+	}
+
+	return
+}
+
+func (v *Vault) GetCryptoKeys() (payload *Payload, err error) {
+	if v.cryptoKeyRead {
+		err = &errortypes.ReadError{
+			errors.New("vault: Crypto keys already read"),
+		}
+		return
+	}
+	v.cryptoKeyRead = true
+
+	keys := &CryptoKeysData{
+		CryptoKeys: base64.StdEncoding.EncodeToString(v.cryptoNonce) + "$" +
+			base64.StdEncoding.EncodeToString(v.cryptoData),
+	}
+
+	err = v.authorizeCryptoKeys(keys)
+	if err != nil {
+		return
+	}
+
+	data, err := json.Marshal(keys)
+	if err != nil {
+		err = &errortypes.ParseError{
+			errors.Wrap(err, "vault: Marshal json error"),
+		}
+		return
+	}
+
+	payload, err = v.encryptPayload(data)
 	if err != nil {
 		return
 	}
