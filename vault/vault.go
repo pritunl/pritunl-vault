@@ -343,13 +343,10 @@ func (v *Vault) LoadMasterKey(payload *Payload) (err error) {
 		return
 	}
 
-	masterKey, err := v.decryptMasterKey(key)
+	err = v.loadCryptoKeys(key)
 	if err != nil {
 		return
 	}
-
-	// TODO
-	_ = masterKey
 
 	return
 }
