@@ -51,6 +51,21 @@ type MasterKeyData struct {
 	Authorization string `json:"a"`
 }
 
+type CryptoKeys struct {
+	AesKey  string `json:"e"`
+	HmacKey string `json:"h"`
+
+	Authorization string `json:"a"`
+}
+
+type CryptoKeysData struct {
+	Nonce         string `json:"n"`
+	Timestamp     int64  `json:"t"`
+	Authorization string `json:"a"`
+
+	CryptoKeys string `json:"k"`
+}
+
 type Payload struct {
 	Nonce string `json:"n"`
 	Data  string `json:"d"`
