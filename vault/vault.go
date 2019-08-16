@@ -8,11 +8,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"strings"
 
 	"github.com/dropbox/godropbox/errors"
 	"github.com/pritunl/pritunl-vault/constants"
 	"github.com/pritunl/pritunl-vault/errortypes"
 	"github.com/pritunl/pritunl-vault/utils"
+	"golang.org/x/crypto/pbkdf2"
 )
 
 var (
@@ -28,8 +30,10 @@ type Vault struct {
 	authorizeKey  []byte
 	encryptionKey []byte
 
-	aesKey  []byte
-	hmacKey []byte
+	cryptoNonce []byte
+	cryptoData  []byte
+	aesKey      []byte
+	hmacKey     []byte
 
 	initKeyRead     bool
 	hostKeyLoaded   bool
@@ -193,6 +197,112 @@ func (v *Vault) LoadHostKey(payload *Payload) (err error) {
 		Bytes: pubHostKeyByte,
 	}
 	v.hostKeyPub = pem.EncodeToMemory(pubHostKeyBlock)
+
+	return
+}
+
+func (v *Vault) loadCryptoKeys(key *MasterKey) (err error) {
+	passphrase, err := v.decryptMasterKey(key)
+	if err != nil {
+		return
+	}
+
+	masterKey := pbkdf2.Key(
+		passphrase,
+		[]byte("pritunl-vault"),
+		4096,
+		32,
+		sha512.New,
+	)
+
+	var keys *CryptoKeys
+	if key.CryptoKeys != "" {
+		split := strings.SplitN(key.CryptoKeys, "$", 2)
+		if len(split) != 2 {
+			err = &errortypes.ParseError{
+				errors.Wrap(err, "vault: Failed to split crypto key input"),
+			}
+			return
+		}
+
+		v.cryptoNonce, err = base64.StdEncoding.DecodeString(split[0])
+		if err != nil {
+			err = &errortypes.ParseError{
+				errors.Wrap(err, "vault: Failed to decode crypto key nonce"),
+			}
+			return
+		}
+
+		v.cryptoData, err = base64.StdEncoding.DecodeString(split[1])
+		if err != nil {
+			err = &errortypes.ParseError{
+				errors.Wrap(err, "vault: Failed to decode crypto data nonce"),
+			}
+			return
+		}
+
+		keys, err = v.decryptCryptoKeys(masterKey)
+		if err != nil {
+			return
+		}
+	} else {
+		keys = &CryptoKeys{}
+	}
+
+	changed := false
+	if keys.AesKey == "" {
+		changed = true
+
+		v.aesKey, err = utils.RandBytes(32)
+		if err != nil {
+			err = &errortypes.ReadError{
+				errors.Wrap(err, "vault: Failed to generate aes key"),
+			}
+			return
+		}
+
+		keys.AesKey = base64.StdEncoding.EncodeToString(v.aesKey)
+	} else {
+		v.aesKey, err = base64.StdEncoding.DecodeString(keys.AesKey)
+		if err != nil {
+			err = &errortypes.ParseError{
+				errors.Wrap(err, "vault: Failed to decode aes key"),
+			}
+			return
+		}
+	}
+
+	if keys.HmacKey == "" {
+		changed = true
+
+		v.hmacKey, err = utils.RandBytes(32)
+		if err != nil {
+			err = &errortypes.ReadError{
+				errors.Wrap(err, "vault: Failed to generate hmac key"),
+			}
+			return
+		}
+
+		keys.HmacKey = base64.StdEncoding.EncodeToString(v.hmacKey)
+	} else {
+		v.hmacKey, err = base64.StdEncoding.DecodeString(keys.HmacKey)
+		if err != nil {
+			err = &errortypes.ParseError{
+				errors.Wrap(err, "vault: Failed to decode hmac key"),
+			}
+			return
+		}
+	}
+
+	if changed {
+		cryptoData, e := v.encryptCryptoKeys(masterKey)
+		if e != nil {
+			err = e
+			return
+		}
+
+		v.cryptoData = cryptoData
+	}
 
 	return
 }
