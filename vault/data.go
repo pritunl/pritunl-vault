@@ -16,18 +16,6 @@ type Data struct {
 	Items []*Item `json:"i"`
 }
 
-type Output struct {
-	Nonce         string `json:"n"`
-	Timestamp     int64  `json:"t"`
-	Authorization string `json:"a"`
-
-	Collection string `json:"c"`
-	Id         string `json:"i"`
-	Key        string `json:"k"`
-	Value      string `json:"v"`
-	Signature  string `json:"s"`
-}
-
 type ServerKey struct {
 	Nonce         string `json:"n"`
 	Timestamp     int64  `json:"t"`
