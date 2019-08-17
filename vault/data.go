@@ -1,5 +1,13 @@
 package vault
 
+type Item struct {
+	Collection string `json:"c"`
+	Id         string `json:"i"`
+	Key        string `json:"k"`
+	Value      string `json:"v"`
+	Signature  string `json:"s"`
+}
+
 type Input struct {
 	Nonce         string `json:"n"`
 	Timestamp     int64  `json:"t"`
