@@ -6,12 +6,12 @@ type Item struct {
 	Key        string `json:"k"`
 	Value      string `json:"v"`
 	Signature  string `json:"s"`
+	Operation  string `json:"o"`
 }
 
 type Data struct {
-	Nonce         string `json:"n"`
-	Timestamp     int64  `json:"t"`
-	Authorization string `json:"a"`
+	Nonce     string `json:"n"`
+	Timestamp int64  `json:"t"`
 
 	Items []*Item `json:"i"`
 }
